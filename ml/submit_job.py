@@ -15,7 +15,7 @@ job = submit_from_stage(
     "@UOFR_XML_DEMO.ML.UR_ML_REPO/branches/main/ml/",
     "UR_ML_POOL",
     entrypoint="train.py",
-    args=["--version", "V2_COMPUTE_POOL"],
+    args=["--version", "V2_COMPUTE_POOL", "--pool", "UR_ML_POOL"],
     stage_name="UOFR_XML_DEMO.ML.ML_PAYLOAD",
     runtime_environment="3.0.6-py312",    # Snowflake runtime image (CPU, Python 3.12), pinned
     # runtime_environment="cre@ur_approved",  # your own scanned image, once registered
@@ -25,5 +25,5 @@ print("Submitted job:", job.id)
 print("Status:", job.status)
 job.wait()
 print("Final status:", job.status)
-print(job.get_logs()[-3000:])
+print("\n".join(l for l in job.get_logs().splitlines() if l.startswith("{'model'")))
 print("Result:", job.result())

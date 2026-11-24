@@ -7,7 +7,6 @@ Either way it trains on UOFR_XML_DEMO.ML.WITHDRAWAL_FEATURES and registers a ver
 UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK in the Model Registry.
 """
 import argparse
-import os
 import platform
 
 import pandas as pd
@@ -96,10 +95,10 @@ def run(session, version_name):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="V2_COMPUTE_POOL")
+    ap.add_argument("--pool", default="UR_ML_POOL")
     args = ap.parse_args()
     from snowflake.snowpark import Session
     session = Session.builder.getOrCreate()
     session.use_database(DATABASE)
     session.use_schema(SCHEMA)
-    pool = os.environ.get("SNOWFLAKE_COMPUTE_POOL", "compute pool")
-    __return__ = main(session, args.version, f"compute pool {pool}")
+    __return__ = main(session, args.version, f"compute pool {args.pool}")
