@@ -5,8 +5,9 @@
 -- =====================================================================
 USE ROLE ACCOUNTADMIN; USE WAREHOUSE UR_ML_WH; USE SCHEMA UOFR_XML_DEMO.ML;
 
--- 1. The data, read straight from Snowflake (synthetic features, real FERPA tags)
-SELECT * FROM WITHDRAWAL_FEATURES LIMIT 10;
+-- 1. The data: features registered in the Feature Store (synthetic features, real FERPA tags)
+SELECT * FROM UOFR_XML_DEMO.ML_FEATURES.WITHDRAWAL_SIGNALS$V1 LIMIT 10;   -- feature view, refreshes daily
+SHOW DATASETS IN SCHEMA UOFR_XML_DEMO.ML_FEATURES;                       -- versioned training dataset train.py reads
 
 -- 2. The code lives in GitHub; Snowflake reads the repository as an object
 ALTER GIT REPOSITORY UR_ML_REPO FETCH;
@@ -31,6 +32,14 @@ SELECT "name" AS version, "is_default_version" AS is_default,
        PARSE_JSON("metadata"):metrics:trained_on::STRING AS trained_on
 FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
 ALTER MODEL UR_WITHDRAWAL_RISK SET DEFAULT_VERSION = V2_COMPUTE_POOL;   -- promote
+
+-- 5b. Every training run is logged to one experiment (Snowsight: AI & ML > Experiments)
+SHOW EXPERIMENTS IN SCHEMA UOFR_XML_DEMO.ML;
+
+-- 5c. Lineage: what data trained the production version (Snowsight: model > Lineage tab)
+SELECT source_object_domain, source_object_name, target_object_domain, target_object_name, distance
+FROM TABLE(SNOWFLAKE.CORE.GET_LINEAGE('UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK', 'MODEL', 'UPSTREAM', 3, 'V2_COMPUTE_POOL'))
+ORDER BY distance;
 
 -- 6. Predict in SQL: the students most at risk of withdrawing
 WITH mv AS MODEL UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK
