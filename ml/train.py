@@ -82,7 +82,7 @@ def main(session, version_name, compute):
 def run(session, version_name):
     """Stored procedure handler (warehouse)."""
     wh = session.get_current_warehouse()
-    return main(session, version_name, f"warehouse {wh}")
+    return main(session, version_name, "warehouse " + (wh or "").strip('"'))
 
 
 if __name__ == "__main__":

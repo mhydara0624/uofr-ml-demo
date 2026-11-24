@@ -49,14 +49,14 @@ WITH base AS (
 )
 SELECT student_id, section_key, course_code, academic_period, gpa, course_load,
        midterm_grade_points, lms_logins_last_14d, financial_hold, first_generation, advising_visits,
-       IFF(u6 < 1 / (1 + EXP(-( -3.4
-                               + 1.3 * (2.0 - LEAST(midterm_grade_points, 2.0))
-                               + 0.7 * (3.0 - gpa)
-                               + 0.08 * (8 - LEAST(lms_logins_last_14d, 8))
-                               + 1.2 * IFF(financial_hold, 1, 0)
-                               + 0.35 * IFF(first_generation, 1, 0)
-                               + 0.30 * (course_load - 1)
-                               - 0.45 * advising_visits))), 1, 0)       AS withdrew
+       IFF(u6 < 1 / (1 + EXP(-( -3.6
+                               + 2.4 * (2.2 - LEAST(midterm_grade_points, 2.2))
+                               + 1.0 * (3.0 - gpa)
+                               + 0.18 * (8 - LEAST(lms_logins_last_14d, 8))
+                               + 1.9 * IFF(financial_hold, 1, 0)
+                               + 0.5 * IFF(first_generation, 1, 0)
+                               + 0.35 * (course_load - 1)
+                               - 0.7 * advising_visits))), 1, 0)       AS withdrew
 FROM f;
 
 ALTER TABLE WITHDRAWAL_FEATURES MODIFY COLUMN STUDENT_ID SET TAG UOFR_XML_DEMO.GOVERNANCE.FERPA_CLASS = 'EDUCATION_RECORD';
@@ -72,8 +72,8 @@ RUNTIME_VERSION = '3.11'
 PACKAGES = ('snowflake-snowpark-python', 'snowflake-ml-python', 'xgboost', 'scikit-learn', 'pandas')
 IMPORTS = ('@UOFR_XML_DEMO.ML.UR_ML_REPO/branches/main/ml/train.py')
 HANDLER = 'train.run'
-EXECUTE AS CALLER
-COMMENT = 'Runs ml/train.py from the Git repository on the current warehouse and registers the model.';
+COMMENT = 'Runs ml/train.py from the Git repository on the current warehouse and registers the model.'
+EXECUTE AS CALLER;
 
 GRANT USAGE ON SCHEMA UOFR_XML_DEMO.ML TO ROLE UR_ANALYST;
 GRANT USAGE ON SCHEMA UOFR_XML_DEMO.ML TO ROLE UR_REGISTRAR;
