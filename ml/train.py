@@ -51,10 +51,18 @@ def train(df):
 def register(session, model, sample, metrics, version_name, compute):
     from snowflake.ml.registry import Registry
     reg = Registry(session=session, database_name=DATABASE, schema_name=SCHEMA)
-    try:
-        reg.get_model(MODEL_NAME).delete_version(version_name)   # re-runnable demo
-    except Exception:
-        pass
+    # re-runnable demo: replace this version if it exists (the default version cannot be deleted directly)
+    if MODEL_NAME in reg.show_models()["name"].tolist():
+        m = reg.get_model(MODEL_NAME)
+        names = [v.version_name for v in m.versions()]
+        if version_name in names:
+            others = [n for n in names if n != version_name]
+            if not others:
+                reg.delete_model(MODEL_NAME)
+            else:
+                if m.default.version_name == version_name:
+                    m.default = others[0]
+                m.delete_version(version_name)
     mv = reg.log_model(
         model,
         model_name=MODEL_NAME,
