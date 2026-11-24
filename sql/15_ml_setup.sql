@@ -94,3 +94,8 @@ GRANT USAGE ON WAREHOUSE UR_ML_WH TO ROLE UR_REGISTRAR;
 -- after the first model version exists:
 -- GRANT USAGE ON MODEL UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK TO ROLE UR_ANALYST;
 -- GRANT USAGE ON MODEL UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK TO ROLE UR_REGISTRAR;
+
+-- Feature Store (run once after this file):  .venv/bin/python ml/fs_setup.py
+--   creates schema UOFR_XML_DEMO.ML_FEATURES, entity ENROLLMENT, feature view WITHDRAWAL_SIGNALS V1
+--   and dataset WITHDRAWAL_TRAINING V1, which train.py reads (gives lineage table -> FV -> dataset -> model).
+-- Experiment UR_WITHDRAWAL_RISK is created by the first training run.
