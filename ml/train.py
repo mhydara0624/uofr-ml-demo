@@ -30,7 +30,7 @@ def load(session):
     from snowflake.snowpark.functions import col
     from snowflake.snowpark.types import DecimalType, FloatType
     sdf = load_dataset(session, DATASET, DATASET_VERSION).read.to_snowpark_dataframe()
-    if sdf.columns == ['"$1"']:  # warehouse runtime reads the dataset's parquet files as one object column
+    if "GPA" not in [c.strip('"').upper() for c in sdf.columns]:  # warehouse runtime reads the dataset's parquet files as one object column
         typed = {"GPA": FloatType(), "MIDTERM_GRADE_POINTS": FloatType()}
         sdf = sdf.select([col("$1")[c].cast(typed.get(c, DecimalType(10, 0))).alias(c) for c in FEATURES + [LABEL]])
     df = sdf.select(FEATURES + [LABEL]).to_pandas()
