@@ -110,6 +110,8 @@ def main(session, version_name, compute):
 
 def run(session, version_name):
     """Stored procedure handler (warehouse)."""
+    session.use_database(DATABASE)
+    session.use_schema(SCHEMA)
     wh = session.get_current_warehouse()
     return main(session, version_name, "warehouse " + (wh or "").strip('"'))
 
