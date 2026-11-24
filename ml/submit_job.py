@@ -17,7 +17,7 @@ job = submit_from_stage(
     entrypoint="train.py",
     args=["--version", "V2_COMPUTE_POOL"],
     stage_name="UOFR_XML_DEMO.ML.ML_PAYLOAD",
-    runtime_environment="3.0.6",          # Snowflake runtime image, pinned
+    runtime_environment="3.0.6-py312",    # Snowflake runtime image (CPU, Python 3.12), pinned
     # runtime_environment="cre@ur_approved",  # your own scanned image, once registered
     session=session,
 )
