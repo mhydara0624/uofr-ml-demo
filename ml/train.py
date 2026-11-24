@@ -3,11 +3,13 @@
 The same file runs two ways:
   * on a warehouse, as the handler of stored procedure ML.TRAIN_WITHDRAWAL_MODEL   -> run(session, version_name)
   * on a compute pool, as a Snowflake ML Job (see submit_job.py)                  -> python train.py --version ...
-Either way it trains on UOFR_XML_DEMO.ML.WITHDRAWAL_FEATURES and registers a version of
-UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK in the Model Registry.
+Either way it reads the versioned Feature Store dataset UOFR_XML_DEMO.ML_FEATURES.WITHDRAWAL_TRAINING,
+logs the run to the experiment UR_WITHDRAWAL_RISK, and registers a version of
+UOFR_XML_DEMO.ML.UR_WITHDRAWAL_RISK in the Model Registry (lineage: table -> feature view -> dataset -> model).
 """
 import argparse
 import platform
+from datetime import datetime
 
 import pandas as pd
 from sklearn.metrics import accuracy_score, roc_auc_score
@@ -15,29 +17,29 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 DATABASE, SCHEMA = "UOFR_XML_DEMO", "ML"
-TABLE = f"{DATABASE}.{SCHEMA}.WITHDRAWAL_FEATURES"
+DATASET, DATASET_VERSION = "UOFR_XML_DEMO.ML_FEATURES.WITHDRAWAL_TRAINING", "V1"
 MODEL_NAME = "UR_WITHDRAWAL_RISK"
+PARAMS = {"n_estimators": 200, "max_depth": 3, "learning_rate": 0.08, "subsample": 0.9}
 FEATURES = ["GPA", "COURSE_LOAD", "MIDTERM_GRADE_POINTS", "LMS_LOGINS_LAST_14D",
             "FINANCIAL_HOLD", "FIRST_GENERATION", "ADVISING_VISITS"]
 LABEL = "WITHDREW"
 
 
 def load(session):
-    df = session.table(TABLE).select(FEATURES + [LABEL]).to_pandas()
-    for c in ["FINANCIAL_HOLD", "FIRST_GENERATION"]:
-        df[c] = df[c].astype(int)
-    for c in ["COURSE_LOAD", "LMS_LOGINS_LAST_14D", "ADVISING_VISITS", LABEL]:
+    from snowflake.ml.dataset import load_dataset
+    sdf = load_dataset(session, DATASET, DATASET_VERSION).read.to_snowpark_dataframe()
+    df = sdf.select(FEATURES + [LABEL]).to_pandas()
+    for c in ["COURSE_LOAD", "LMS_LOGINS_LAST_14D", "FINANCIAL_HOLD", "FIRST_GENERATION", "ADVISING_VISITS", LABEL]:
         df[c] = df[c].astype(int)
     for c in ["GPA", "MIDTERM_GRADE_POINTS"]:
         df[c] = df[c].astype(float)
-    return df
+    return sdf, df
 
 
 def train(df):
     X, y = df[FEATURES], df[LABEL]
     X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
-    model = XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.08, subsample=0.9,
-                          eval_metric="auc", random_state=42)
+    model = XGBClassifier(**PARAMS, eval_metric="auc", random_state=42)
     model.fit(X_tr, y_tr)
     p = model.predict_proba(X_te)[:, 1]
     metrics = {"auc": round(float(roc_auc_score(y_te, p)), 4),
@@ -66,7 +68,7 @@ def register(session, model, sample, metrics, version_name, compute):
         model,
         model_name=MODEL_NAME,
         version_name=version_name,
-        sample_input_data=sample.head(50),
+        sample_input_data=sample,      # Snowpark DataFrame from the Dataset -> lineage
         conda_dependencies=["xgboost", "scikit-learn"],
         target_platforms=["WAREHOUSE"],
         metrics={**metrics, "trained_on": compute},
@@ -76,12 +78,27 @@ def register(session, model, sample, metrics, version_name, compute):
     return mv.version_name
 
 
+def track(session, run_name, metrics, compute):
+    """Log params and metrics to the Snowflake experiment (AI & ML > Experiments)."""
+    try:
+        from snowflake.ml.experiment import ExperimentTracking
+        exp = ExperimentTracking(session=session, database_name=DATABASE, schema_name=SCHEMA)
+        exp.set_experiment(MODEL_NAME)
+        with exp.start_run(run_name):
+            exp.log_params({**PARAMS, "compute": compute, "dataset": f"{DATASET} {DATASET_VERSION}"})
+            exp.log_metrics({k: float(v) for k, v in metrics.items()})
+        return run_name
+    except Exception as e:  # tracking must never fail a training run
+        return f"not logged: {type(e).__name__}: {e}"[:200]
+
+
 def main(session, version_name, compute):
-    df = load(session)
+    sdf, df = load(session)
     model, X_tr, metrics = train(df)
-    v = register(session, model, X_tr, metrics, version_name, compute)
+    run = track(session, f"{version_name}_{datetime.now():%Y%m%d_%H%M%S}", metrics, compute)
+    v = register(session, model, sdf.select(FEATURES).limit(50), metrics, version_name, compute)
     out = {"model": f"{DATABASE}.{SCHEMA}.{MODEL_NAME}", "version": v, "trained_on": compute,
-           "python": platform.python_version(), **metrics}
+           "experiment_run": run, "python": platform.python_version(), **metrics}
     print(out)
     return out
 
